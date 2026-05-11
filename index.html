@@ -69,11 +69,11 @@
             const canvasRef = useRef(null);
 
             const loadingMessages = [
-                "사진의 특징을 분석하고 있습니다...",
-                "사용자의 얼굴 고유 데이터를 추출 중입니다...",
-                "상상하시는 스타일을 캔버스에 그리는 중입니다...",
-                "거의 다 되었습니다. 마지막 렌더링 중...",
-                "작품이 곧 완성됩니다!"
+                "사진의 특징을 정밀하게 분석 중입니다...",
+                "사용자의 얼굴 데이터를 추출하고 있습니다...",
+                "입력하신 스타일을 예술적으로 그리는 중입니다...",
+                "작업이 거의 마무리되었습니다...",
+                "최종 결과물을 렌더링하고 있습니다!"
             ];
 
             useEffect(() => {
@@ -171,15 +171,15 @@
                     const mimeType = sourceImage.split(';')[0].split(':')[1];
                     const base64Data = sourceImage.split(',')[1];
 
-                    // 1단계: 사진 분석 (안정적인 gemini-1.5-flash 모델 사용)
-                    const analysisUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${INTERNAL_API_KEY}`;
+                    // 1단계: 사진 분석 (호환성이 가장 높은 v1 엔드포인트와 gemini-1.5-flash 사용)
+                    const analysisUrl = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${INTERNAL_API_KEY}`;
                     const analysisResponse = await fetch(analysisUrl, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             contents: [{
                                 parts: [
-                                    { text: "Describe the features of the person in this photo (gender, approximate age, hairstyle, glasses, expression, etc.) in detail. Write the description in English for an image generation prompt." },
+                                    { text: "Analyze the person in this photo in detail (gender, approximate age, hairstyle, facial features, accessories like glasses) and write a detailed descriptive prompt in English that represents their identity for an image generation task." },
                                     { inlineData: { mimeType: mimeType, data: base64Data } }
                                 ]
                             }]
@@ -188,7 +188,7 @@
 
                     const analysisData = await analysisResponse.json();
                     if (!analysisResponse.ok) {
-                        throw new Error(`[분석 단계 오류] ${analysisData.error?.message || "모델을 찾을 수 없거나 접근할 수 없습니다."}`);
+                        throw new Error(`[분석 단계 오류] ${analysisData.error?.message || "서버 응답이 올바르지 않습니다."}`);
                     }
                     const description = analysisData.candidates?.[0]?.content?.parts?.[0]?.text;
 
@@ -197,8 +197,9 @@
                     }
 
                     // 2단계: 이미지 생성 (안정적인 imagen-3.0-generate-001 모델 사용)
+                    // 참고: AI Studio용 Imagen 엔드포인트는 모델 가용성에 따라 v1beta를 사용해야 할 수도 있습니다.
                     const imagenUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key=${INTERNAL_API_KEY}`;
-                    const finalPrompt = `A professional, high-quality portrait photo of a person. Based on this reference description: ${description}. They are now transformed into: ${prompt}. Ensure facial features are recognizable and consistent. Cinematic lighting, photorealistic, 8k resolution.`;
+                    const finalPrompt = `A professional, high-quality portrait photo of a person. Reference description of the original person: ${description}. Current transformation request: ${prompt}. Maintain the recognizable facial structure and core identity of the original person. Photorealistic, 8k resolution, cinematic lighting.`;
 
                     const imagenResponse = await fetch(imagenUrl, {
                         method: 'POST',
@@ -211,18 +212,18 @@
 
                     const imagenData = await imagenResponse.json();
                     if (!imagenResponse.ok) {
-                        throw new Error(`[생성 단계 오류] ${imagenData.error?.message || "이미지 생성 모델에 접근할 수 없습니다."}`);
+                        throw new Error(`[생성 단계 오류] ${imagenData.error?.message || "이미지 생성 도중 문제가 발생했습니다."}`);
                     }
                     
                     const base64Image = imagenData.predictions?.[0]?.bytesBase64Encoded;
                     if (base64Image) {
                         setResultImage(`data:image/png;base64,${base64Image}`);
                     } else {
-                        throw new Error("AI가 이미지를 생성하지 못했습니다. 설명을 다르게 입력해보세요.");
+                        throw new Error("AI가 이미지를 생성하지 못했습니다. 설명을 조금 더 구체적으로 적어보세요.");
                     }
                 } catch (err) {
                     setError(`${err.message}`);
-                    console.error(err);
+                    console.error("Error details:", err);
                 } finally {
                     setIsLoading(false);
                 }
@@ -238,12 +239,13 @@
                                 </div>
                                 <div>
                                     <h1 className="text-3xl md:text-4xl font-black text-indigo-950 tracking-tight">말하는 대로 변신하는 나의 모습</h1>
-                                    <p className="text-slate-400 text-sm font-medium mt-1 uppercase tracking-widest">AI 하이브리드 기술 (Gemini 1.5 + Imagen 3.0)</p>
+                                    <p className="text-slate-400 text-sm font-medium mt-1 uppercase tracking-widest">하이브리드 AI 엔진 가동 중 (Gemini 1.5 + Imagen 3.0)</p>
                                 </div>
                             </div>
                         </header>
 
                         <main className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+                            {/* 입력 패널 */}
                             <div className="lg:col-span-4 space-y-8">
                                 <section className="bg-white p-7 rounded-[2.5rem] shadow-sm border border-slate-100">
                                     <h2 className="text-xl font-bold mb-5 flex items-center gap-2 text-indigo-900">
@@ -301,7 +303,7 @@
                                     <textarea 
                                         value={prompt} 
                                         onChange={(e) => setPrompt(e.target.value)} 
-                                        placeholder="예: '우주복을 입고 화성 기지에 서 있는 탐사 대원', '픽사 애니메이션 스타일의 귀여운 3D 캐릭터'" 
+                                        placeholder="예: '황금 갑옷을 입고 전장에 선 중세 기사', '사이버펑크 네온 사인이 가득한 도시의 요원'" 
                                         className="w-full h-36 p-5 bg-slate-50 rounded-[1.5rem] outline-none border-2 border-transparent focus:border-indigo-200 focus:bg-white transition-all resize-none font-medium text-sm leading-relaxed" 
                                     />
                                     <button 
@@ -353,7 +355,7 @@
                                                 </div>
                                                 <div className="space-y-3">
                                                     <p className="font-black text-indigo-950 text-2xl tracking-tight">{loadingMessages[loadingStep]}</p>
-                                                    <p className="text-slate-400 font-medium text-sm">안정적인 Gemini 분석 엔진과 Imagen 화가가 협업 중입니다.</p>
+                                                    <p className="text-slate-400 font-medium text-sm">Gemini의 눈과 Imagen의 붓이 만나 작품을 만드는 중입니다.</p>
                                                 </div>
                                                 <div className="w-80 bg-indigo-100 h-3 rounded-full overflow-hidden mx-auto shadow-inner border border-indigo-50">
                                                     <div className="bg-indigo-600 h-full transition-all duration-1000 ease-out shadow-lg" style={{ width: `${((loadingStep + 1) / 5) * 100}%` }}></div>
@@ -368,10 +370,10 @@
                                                 <div className="w-24 h-24 bg-white rounded-[2rem] flex items-center justify-center mx-auto mb-8 shadow-sm border border-slate-50">
                                                     <Icons.User className="w-12 h-12" />
                                                 </div>
-                                                <h3 className="text-slate-900 font-black text-2xl mb-3 tracking-tight">어떤 모습이 되고 싶나요?</h3>
+                                                <h3 className="text-slate-900 font-black text-2xl mb-3 tracking-tight">준비되셨나요?</h3>
                                                 <p className="text-slate-400 font-medium leading-relaxed">
-                                                    사진을 올리고 상상하는 모습을 입력해보세요. 
-                                                    구체적인 배경과 스타일을 적을수록 더 멋진 결과가 나옵니다!
+                                                    사진을 업로드하고 상상하는 모습을 구체적으로 적어보세요. 
+                                                    최신 AI 기술이 당신의 상상을 현실로 그려드립니다!
                                                 </p>
                                             </div>
                                         )}
