@@ -46,7 +46,7 @@
 
         const { useState, useEffect, useRef } = React;
 
-        // Firebase 초기화
+        // Firebase 초기화 (배포 환경 대응)
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { apiKey: "mock-api-key", authDomain: "mock.firebaseapp.com" };
         if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
@@ -71,7 +71,7 @@
             const loadingMessages = [
                 "사진의 특징을 정밀하게 분석 중입니다...",
                 "사용자의 얼굴 데이터를 추출하고 있습니다...",
-                "입력하신 스타일을 예술적으로 그리는 중입니다...",
+                "상상하시는 스타일을 예술적으로 그리는 중입니다...",
                 "작업이 거의 마무리되었습니다...",
                 "최종 결과물을 렌더링하고 있습니다!"
             ];
@@ -171,15 +171,17 @@
                     const mimeType = sourceImage.split(';')[0].split(':')[1];
                     const base64Data = sourceImage.split(',')[1];
 
-                    // 1단계: 사진 분석 (호환성이 가장 높은 v1 엔드포인트와 gemini-1.5-flash 사용)
-                    const analysisUrl = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${INTERNAL_API_KEY}`;
+                    // 1단계: 사진 분석 (v1beta 엔드포인트 + gemini-1.5-flash 모델 사용)
+                    // 가장 광범위한 호환성을 가진 조합입니다.
+                    const analysisUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${INTERNAL_API_KEY}`;
+                    
                     const analysisResponse = await fetch(analysisUrl, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             contents: [{
                                 parts: [
-                                    { text: "Analyze the person in this photo in detail (gender, approximate age, hairstyle, facial features, accessories like glasses) and write a detailed descriptive prompt in English that represents their identity for an image generation task." },
+                                    { text: "Analyze the person in this photo in detail (gender, approximate age, hairstyle, facial features, accessories like glasses). Write a comprehensive descriptive prompt in English so an AI can recreate this person's core identity in a new style." },
                                     { inlineData: { mimeType: mimeType, data: base64Data } }
                                 ]
                             }]
@@ -188,42 +190,44 @@
 
                     const analysisData = await analysisResponse.json();
                     if (!analysisResponse.ok) {
-                        throw new Error(`[분석 단계 오류] ${analysisData.error?.message || "서버 응답이 올바르지 않습니다."}`);
+                        throw new Error(`[분석 오류] ${analysisData.error?.message || "서버 응답이 올바르지 않습니다."}`);
                     }
                     const description = analysisData.candidates?.[0]?.content?.parts?.[0]?.text;
 
                     if (!description) {
-                        throw new Error("사진 분석 결과를 가져오지 못했습니다.");
+                        throw new Error("사진 분석 결과를 가져오지 못했습니다. 사진을 다시 찍어보세요.");
                     }
 
-                    // 2단계: 이미지 생성 (안정적인 imagen-3.0-generate-001 모델 사용)
-                    // 참고: AI Studio용 Imagen 엔드포인트는 모델 가용성에 따라 v1beta를 사용해야 할 수도 있습니다.
-                    const imagenUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key=${INTERNAL_API_KEY}`;
-                    const finalPrompt = `A professional, high-quality portrait photo of a person. Reference description of the original person: ${description}. Current transformation request: ${prompt}. Maintain the recognizable facial structure and core identity of the original person. Photorealistic, 8k resolution, cinematic lighting.`;
+                    // 2단계: 이미지 생성 (v1beta 엔드포인트 + imagen-4.0-generate-001 모델 사용)
+                    // 시스템에서 권장하는 최신 이미지 생성 모델 엔드포인트입니다.
+                    const imagenUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${INTERNAL_API_KEY}`;
+                    
+                    const finalPrompt = `A high-quality, professional, photorealistic portrait of the person. Reference: ${description}. Transformation request: ${prompt}. Maintain the recognizable facial features, structure and core identity of the person in the original photo. Cinematic lighting, highly detailed, 8k resolution.`;
 
                     const imagenResponse = await fetch(imagenUrl, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            instances: [{ prompt: finalPrompt }],
+                            instances: { prompt: finalPrompt },
                             parameters: { sampleCount: 1 }
                         })
                     });
 
                     const imagenData = await imagenResponse.json();
                     if (!imagenResponse.ok) {
-                        throw new Error(`[생성 단계 오류] ${imagenData.error?.message || "이미지 생성 도중 문제가 발생했습니다."}`);
+                        throw new Error(`[생성 오류] ${imagenData.error?.message || "이미지 생성 도중 문제가 발생했습니다."}`);
                     }
                     
+                    // imagen-4.0 모델의 응답 구조에 맞춘 데이터 추출
                     const base64Image = imagenData.predictions?.[0]?.bytesBase64Encoded;
                     if (base64Image) {
                         setResultImage(`data:image/png;base64,${base64Image}`);
                     } else {
-                        throw new Error("AI가 이미지를 생성하지 못했습니다. 설명을 조금 더 구체적으로 적어보세요.");
+                        throw new Error("AI가 이미지를 생성하지 못했습니다. 설명을 다르게 입력해보세요.");
                     }
                 } catch (err) {
                     setError(`${err.message}`);
-                    console.error("Error details:", err);
+                    console.error("Full error stack:", err);
                 } finally {
                     setIsLoading(false);
                 }
@@ -239,7 +243,9 @@
                                 </div>
                                 <div>
                                     <h1 className="text-3xl md:text-4xl font-black text-indigo-950 tracking-tight">말하는 대로 변신하는 나의 모습</h1>
-                                    <p className="text-slate-400 text-sm font-medium mt-1 uppercase tracking-widest">하이브리드 AI 엔진 가동 중 (Gemini 1.5 + Imagen 3.0)</p>
+                                    <p className="text-slate-400 text-sm font-medium mt-1 uppercase tracking-widest leading-relaxed">
+                                        최적화된 AI 하이브리드 엔진 가동 중 <br className="sm:hidden" /> (Gemini 1.5 + Imagen 4.0)
+                                    </p>
                                 </div>
                             </div>
                         </header>
@@ -319,9 +325,9 @@
                                         {isLoading ? "마법 부리는 중..." : "변신 시작하기"}
                                     </button>
                                     {error && (
-                                        <div className="mt-5 p-4 bg-red-50 text-red-600 text-xs font-bold rounded-2xl flex items-start gap-3 border border-red-100 animate-in slide-in-from-top-2 duration-300">
-                                            <Icons.AlertCircle className="shrink-0 w-5 h-5" /> 
-                                            <div className="flex-1 whitespace-pre-wrap">{error}</div>
+                                        <div className="mt-5 p-4 bg-red-50 text-red-600 text-[13px] font-bold rounded-2xl flex items-start gap-3 border border-red-100 animate-in slide-in-from-top-2 duration-300">
+                                            <Icons.AlertCircle className="shrink-0 w-5 h-5 mt-0.5" /> 
+                                            <div className="flex-1 whitespace-pre-wrap leading-relaxed">{error}</div>
                                         </div>
                                     )}
                                 </section>
@@ -355,7 +361,7 @@
                                                 </div>
                                                 <div className="space-y-3">
                                                     <p className="font-black text-indigo-950 text-2xl tracking-tight">{loadingMessages[loadingStep]}</p>
-                                                    <p className="text-slate-400 font-medium text-sm">Gemini의 눈과 Imagen의 붓이 만나 작품을 만드는 중입니다.</p>
+                                                    <p className="text-slate-400 font-medium text-sm">Gemini의 통찰과 Imagen의 붓이 만나 작품을 만드는 중입니다.</p>
                                                 </div>
                                                 <div className="w-80 bg-indigo-100 h-3 rounded-full overflow-hidden mx-auto shadow-inner border border-indigo-50">
                                                     <div className="bg-indigo-600 h-full transition-all duration-1000 ease-out shadow-lg" style={{ width: `${((loadingStep + 1) / 5) * 100}%` }}></div>
@@ -373,7 +379,7 @@
                                                 <h3 className="text-slate-900 font-black text-2xl mb-3 tracking-tight">준비되셨나요?</h3>
                                                 <p className="text-slate-400 font-medium leading-relaxed">
                                                     사진을 업로드하고 상상하는 모습을 구체적으로 적어보세요. 
-                                                    최신 AI 기술이 당신의 상상을 현실로 그려드립니다!
+                                                    구글의 최신 하이브리드 AI가 당신의 상상을 현실로 그려드립니다!
                                                 </p>
                                             </div>
                                         )}
