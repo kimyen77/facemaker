@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>말하는 대로 변신하는 나의 모습</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Firebase SDKs (Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@100;400;700;900&display=swap');
+        body { font-family: 'Noto Sans KR', sans-serif; overflow-x: hidden; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .animate-spin-custom { animation: spin 2s linear infinite; }
+        .glass-effect { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(10px); }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 selection:bg-indigo-100">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // --- [중요] 본인의 Gemini API 키가 아래 변수에 제대로 들어있는지 확인하세요 ---
+        const INTERNAL_API_KEY = "AIzaSyBvCr5hX9vUX3_jEq7Apy2ot-5hkjm6XcI"; 
+
+        const Icons = {
+            Upload: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>,
+            Sparkles: ({className}) => <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></svg>,
+            ImageIcon: ({className}) => <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>,
+            Download: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>,
+            RefreshCw: ({className}) => <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>,
+            User: ({className}) => <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
+            Zap: ({className}) => <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
+            CheckCircle2: ({className}) => <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>,
+            AlertCircle: ({className}) => <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>,
+            Camera: ({className}) => <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>,
+            X: ({className}) => <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg>,
+            FlipHorizontal: ({className}) => <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m8 3 4 4 4-4"/><path d="m8 21 4-4 4 4"/><path d="M12 7v10"/></svg>
+        };
+
+        const { useState, useEffect, useRef } = React;
+
+        // Firebase 초기화
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { apiKey: "mock-api-key", authDomain: "mock.firebaseapp.com" };
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+
+        const App = () => {
+            const [user, setUser] = useState(null);
+            const [sourceImage, setSourceImage] = useState(null);
+            const [prompt, setPrompt] = useState("");
+            const [resultImage, setResultImage] = useState(null);
+            const [isLoading, setIsLoading] = useState(false);
+            const [loadingStep, setLoadingStep] = useState(0);
+            const [error, setError] = useState(null);
+            
+            const [isCameraMode, setIsCameraMode] = useState(false);
+            const [cameraStream, setCameraStream] = useState(null);
+            const [facingMode, setFacingMode] = useState('user');
+            
+            const fileInputRef = useRef(null);
+            const videoRef = useRef(null);
+            const canvasRef = useRef(null);
+
+            const loadingMessages = [
+                "이미지 데이터를 정밀 분석 중입니다...",
+                "얼굴 고유의 특징을 추출하고 있습니다...",
+                "스타일을 마법처럼 입히는 중입니다...",
+                "거의 다 되었습니다...",
+                "마지막 렌더링 작업을 수행 중입니다..."
+            ];
+
+            useEffect(() => {
+                let interval;
+                if (isLoading) {
+                    setLoadingStep(0);
+                    interval = setInterval(() => {
+                        setLoadingStep((prev) => (prev < loadingMessages.length - 1 ? prev + 1 : prev));
+                    }, 3500);
+                } else {
+                    clearInterval(interval);
+                }
+                return () => clearInterval(interval);
+            }, [isLoading]);
+
+            useEffect(() => {
+                const initAuth = async () => {
+                    try {
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await auth.signInWithCustomToken(__initial_auth_token);
+                        } else {
+                            await auth.signInAnonymously();
+                        }
+                    } catch (err) { console.error("Auth Error:", err); }
+                };
+                initAuth();
+                const unsubscribe = auth.onAuthStateChanged(setUser);
+                return () => unsubscribe();
+            }, []);
+
+            useEffect(() => {
+                if (isCameraMode && videoRef.current && cameraStream) {
+                    videoRef.current.srcObject = cameraStream;
+                }
+            }, [isCameraMode, cameraStream]);
+
+            const startCamera = async (mode = facingMode) => {
+                setError(null);
+                if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ 
+                        video: { facingMode: mode, width: { ideal: 1280 }, height: { ideal: 720 } }, 
+                        audio: false 
+                    });
+                    setCameraStream(stream);
+                    setIsCameraMode(true);
+                } catch (err) {
+                    setError("카메라 권한이 없거나 지원되지 않는 환경입니다.");
+                }
+            };
+
+            const capturePhoto = () => {
+                if (videoRef.current && canvasRef.current) {
+                    const canvas = canvasRef.current;
+                    const video = videoRef.current;
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    const ctx = canvas.getContext('2d');
+                    if (facingMode === 'user') { ctx.translate(canvas.width, 0); ctx.scale(-1, 1); }
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    setSourceImage(canvas.toDataURL('image/png'));
+                    if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
+                    setIsCameraMode(false);
+                }
+            };
+
+            const handleImageUpload = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    if (file.size > 4 * 1024 * 1024) {
+                        setError("이미지 크기는 4MB 이하여야 합니다.");
+                        return;
+                    }
+                    const reader = new FileReader();
+                    reader.onloadend = () => setSourceImage(reader.result);
+                    reader.readAsDataURL(file);
+                }
+            };
+
+            const transformImage = async () => {
+                if (!INTERNAL_API_KEY || INTERNAL_API_KEY.includes("ENTER_YOUR")) {
+                    setError("API 키가 설정되지 않았습니다. 코드 상단의 INTERNAL_API_KEY를 확인해주세요.");
+                    return;
+                }
+                if (!sourceImage || !prompt.trim()) {
+                    setError("사진과 변신할 모습을 모두 입력해주세요.");
+                    return;
+                }
+                
+                setIsLoading(true);
+                setError(null);
+                setResultImage(null);
+
+                const model = "gemini-2.5-flash-image-preview";
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${INTERNAL_API_KEY}`;
+
+                try {
+                    const mimeType = sourceImage.split(';')[0].split(':')[1];
+                    const base64Data = sourceImage.split(',')[1];
+
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{
+                                parts: [
+                                    { text: `이 이미지 속 인물을 다음 모습으로 정교하게 변형하세요: ${prompt}. 얼굴의 이목구비 위치와 고유 특징은 유지하여 인물을 알아볼 수 있게 하되, 배경과 복장, 화풍을 설명대로 완벽히 적용하십시오.` },
+                                    { inlineData: { mimeType: mimeType, data: base64Data } }
+                                ]
+                            }],
+                            generationConfig: { responseModalities: ["TEXT", "IMAGE"] }
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        console.error("Server Error Response:", data);
+                        const msg = data.error?.message || "서버 오류가 발생했습니다.";
+                        throw new Error(`[AI 오류] ${msg}`);
+                    }
+
+                    const base64Image = data.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
+                    if (base64Image) {
+                        setResultImage(`data:image/png;base64,${base64Image}`);
+                    } else {
+                        throw new Error("AI가 이미지를 생성하지 못했습니다. 설명을 더 자세히 적어보세요.");
+                    }
+                } catch (err) {
+                    setError(err.message);
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            return (
+                <div className="min-h-screen p-4 md:p-8 animate-in fade-in duration-500">
+                    <div className="max-w-6xl mx-auto">
+                        <header className="flex flex-col md:flex-row items-center justify-between mb-12 gap-6">
+                            <div className="flex items-center gap-4">
+                                <div className="bg-indigo-600 p-3 rounded-[1.25rem] shadow-2xl shadow-indigo-200">
+                                    <Icons.Sparkles className="text-white w-7 h-7" />
+                                </div>
+                                <div>
+                                    <h1 className="text-3xl md:text-4xl font-black text-indigo-950 tracking-tight">말하는 대로 변신하는 나의 모습</h1>
+                                    <p className="text-slate-400 text-sm font-medium mt-1 uppercase tracking-widest">Powered by Gemini AI Studio</p>
+                                </div>
+                            </div>
+                        </header>
+
+                        <main className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+                            {/* 입력 패널 */}
+                            <div className="lg:col-span-4 space-y-8">
+                                <section className="bg-white p-7 rounded-[2.5rem] shadow-sm border border-slate-100">
+                                    <h2 className="text-xl font-bold mb-5 flex items-center gap-2 text-indigo-900">
+                                        <Icons.ImageIcon className="text-indigo-500 w-6 h-6" /> 1단계: 사진 준비
+                                    </h2>
+                                    <div className="relative border-2 border-dashed rounded-[2rem] bg-slate-50 overflow-hidden group transition-all duration-300 hover:border-indigo-300" style={{ height: '380px' }}>
+                                        {!sourceImage && !isCameraMode && (
+                                            <div className="flex flex-col items-center justify-center h-full p-8 text-center space-y-5">
+                                                <div className="bg-white p-5 rounded-full shadow-sm group-hover:scale-110 transition-transform duration-500">
+                                                    <Icons.ImageIcon className="text-slate-300 w-12 h-12" />
+                                                </div>
+                                                <div className="space-y-3 w-full">
+                                                    <button onClick={() => fileInputRef.current.click()} className="w-full py-4 bg-white border border-slate-200 rounded-2xl font-bold flex items-center justify-center gap-2 hover:border-indigo-500 hover:text-indigo-600 transition-all shadow-sm">
+                                                        <Icons.Upload /> 갤러리에서 선택
+                                                    </button>
+                                                    <button onClick={() => startCamera('user')} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all">
+                                                        <Icons.Camera /> 지금 바로 촬영
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {sourceImage && !isCameraMode && (
+                                            <div className="relative h-full animate-in zoom-in duration-300">
+                                                <img src={sourceImage} className="w-full h-full object-cover" alt="원본" />
+                                                <button onClick={() => setSourceImage(null)} className="absolute top-4 right-4 p-2 bg-white/90 rounded-full shadow-xl hover:bg-red-500 hover:text-white transition-all">
+                                                    <Icons.X />
+                                                </button>
+                                            </div>
+                                        )}
+                                        {isCameraMode && (
+                                            <div className="relative h-full bg-black">
+                                                <video ref={videoRef} autoPlay playsInline style={{ transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }} className="w-full h-full object-cover" />
+                                                <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-4 px-6">
+                                                    <button onClick={() => { const m = facingMode === 'user' ? 'environment' : 'user'; setFacingMode(m); startCamera(m); }} className="p-4 bg-white/20 rounded-full text-white backdrop-blur-md hover:bg-white/30 transition-all">
+                                                        <Icons.FlipHorizontal />
+                                                    </button>
+                                                    <button onClick={capturePhoto} className="w-16 h-16 bg-white rounded-full flex items-center justify-center text-indigo-600 shadow-2xl active:scale-90 transition-all border-4 border-white/30">
+                                                        <Icons.Camera className="w-8 h-8" />
+                                                    </button>
+                                                    <button onClick={() => setIsCameraMode(false)} className="p-4 bg-red-500/80 rounded-full text-white backdrop-blur-md hover:bg-red-500 transition-all">
+                                                        <Icons.X />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                        <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
+                                        <canvas ref={canvasRef} className="hidden" />
+                                    </div>
+                                </section>
+
+                                <section className="bg-white p-7 rounded-[2.5rem] shadow-sm border border-slate-100">
+                                    <h2 className="text-xl font-bold mb-5 flex items-center gap-2 text-indigo-900">
+                                        <Icons.Zap className="text-amber-500 w-6 h-6" /> 2단계: 변신 스타일
+                                    </h2>
+                                    <textarea 
+                                        value={prompt} 
+                                        onChange={(e) => setPrompt(e.target.value)} 
+                                        placeholder="예: '우주복을 입고 화성 기지에 서 있는 탐사 대원', '픽사 애니메이션 스타일의 귀여운 3D 캐릭터'" 
+                                        className="w-full h-36 p-5 bg-slate-50 rounded-[1.5rem] outline-none border-2 border-transparent focus:border-indigo-200 focus:bg-white transition-all resize-none font-medium text-sm leading-relaxed" 
+                                    />
+                                    <button 
+                                        onClick={transformImage} 
+                                        disabled={isLoading || !sourceImage} 
+                                        className={`w-full mt-6 py-5 rounded-[1.5rem] font-black text-xl flex items-center justify-center gap-3 transition-all ${
+                                            isLoading || !sourceImage 
+                                            ? 'bg-slate-100 text-slate-300 cursor-not-allowed' 
+                                            : 'bg-indigo-600 text-white hover:bg-indigo-700 active:scale-[0.98] shadow-2xl shadow-indigo-200'
+                                        }`}
+                                    >
+                                        {isLoading ? <Icons.RefreshCw className="animate-spin-custom w-7 h-7" /> : <Icons.Sparkles className="w-7 h-7" />} 
+                                        {isLoading ? "변신 중..." : "변신 시작하기"}
+                                    </button>
+                                    {error && (
+                                        <div className="mt-5 p-4 bg-red-50 text-red-600 text-xs font-bold rounded-2xl flex items-start gap-3 border border-red-100 animate-in slide-in-from-top-2 duration-300">
+                                            <Icons.AlertCircle className="shrink-0 w-5 h-5" /> 
+                                            <div className="flex-1">{error}</div>
+                                        </div>
+                                    )}
+                                </section>
+                            </div>
+
+                            {/* 결과 패널 */}
+                            <div className="lg:col-span-8">
+                                <section className="bg-white rounded-[3rem] shadow-sm border border-slate-100 h-full flex flex-col min-h-[650px] overflow-hidden">
+                                    <div className="p-8 border-b flex items-center justify-between glass-effect sticky top-0 z-20">
+                                        <h2 className="text-2xl font-black flex items-center gap-3 text-indigo-950">
+                                            <div className="bg-emerald-100 p-2 rounded-xl">
+                                                <Icons.CheckCircle2 className="text-emerald-600 w-6 h-6" />
+                                            </div>
+                                            변신 결과
+                                        </h2>
+                                        {resultImage && (
+                                            <button 
+                                                onClick={() => { const link = document.createElement('a'); link.href = resultImage; link.download = `transformed_${Date.now()}.png`; link.click(); }} 
+                                                className="bg-indigo-600 text-white px-6 py-3 rounded-2xl font-bold flex items-center gap-2 hover:bg-indigo-700 transition-all active:scale-95 shadow-lg shadow-indigo-100"
+                                            >
+                                                <Icons.Download /> 저장하기
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div className="flex-1 flex items-center justify-center p-10 bg-slate-50/30">
+                                        {isLoading ? (
+                                            <div className="text-center space-y-8 animate-in fade-in duration-500">
+                                                <div className="relative inline-block">
+                                                    <div className="w-24 h-24 border-[6px] border-indigo-100 border-t-indigo-600 rounded-full animate-spin-custom"></div>
+                                                    <Icons.Sparkles className="absolute inset-0 m-auto text-indigo-400 w-10 h-10 animate-pulse" />
+                                                </div>
+                                                <div className="space-y-3">
+                                                    <p className="font-black text-indigo-950 text-2xl tracking-tight">{loadingMessages[loadingStep]}</p>
+                                                    <p className="text-slate-400 font-medium">최신 생성형 AI 모델이 마법을 부리는 중입니다.</p>
+                                                </div>
+                                                <div className="w-80 bg-indigo-100 h-3 rounded-full overflow-hidden mx-auto shadow-inner border border-indigo-50">
+                                                    <div className="bg-indigo-600 h-full transition-all duration-1000 ease-out shadow-lg" style={{ width: `${((loadingStep + 1) / 5) * 100}%` }}></div>
+                                                </div>
+                                            </div>
+                                        ) : resultImage ? (
+                                            <div className="animate-in zoom-in-95 duration-700 p-4">
+                                                <img src={resultImage} className="max-h-[70vh] rounded-[2.5rem] shadow-2xl border-[12px] border-white ring-1 ring-slate-100 mx-auto" alt="결과" />
+                                            </div>
+                                        ) : (
+                                            <div className="text-center text-slate-300 max-w-sm px-10">
+                                                <div className="w-24 h-24 bg-white rounded-[2rem] flex items-center justify-center mx-auto mb-8 shadow-sm border border-slate-50">
+                                                    <Icons.User className="w-12 h-12" />
+                                                </div>
+                                                <h3 className="text-slate-900 font-black text-2xl mb-3 tracking-tight">어떤 모습이 되고 싶나요?</h3>
+                                                <p className="text-slate-400 font-medium leading-relaxed">
+                                                    왼쪽에서 사진을 준비하고 상상하는 모습을 입력해보세요. 
+                                                    구체적인 배경과 스타일을 적을수록 더 멋진 결과가 나옵니다!
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </section>
+                            </div>
+                        </main>
+
+                        <footer className="mt-16 text-center pb-12 border-t border-slate-200/50 pt-10">
+                            <p className="text-slate-400 text-xs font-bold uppercase tracking-[0.3em]">© 2024 말하는 대로 변신하는 나의 모습 Studio</p>
+                        </footer>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
